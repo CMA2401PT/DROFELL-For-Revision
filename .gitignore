@@ -6,7 +6,6 @@
 **/*.o
 **/build
 /data
-/cache/*
 .DS_Store
 **/op_dumped*
 **/memory_records*
