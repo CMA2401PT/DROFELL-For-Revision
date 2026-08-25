@@ -36,7 +36,6 @@ If you are new to the system, start with [`docs/walkthrough/README.md`](docs/wal
 | `scripts/` | Model conversion, component checks, offline/online entry points, and benchmarks |
 | `simulate/` | Independent simulation and probe tools |
 | `split_qllm_models/` | Default lookup location for sharded foundation models |
-| `tests/` | Automated tests and regression checks |
 | `utils/` | Shared utilities |
 
 ## Runtime environment
