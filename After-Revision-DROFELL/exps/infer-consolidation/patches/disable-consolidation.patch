@@ -1,0 +1,8 @@
+diff --git a/node/flags.py b/node/flags.py
+--- a/node/flags.py
++++ b/node/flags.py
+@@ -6,3 +6,3 @@
+ INTERCEPT_WINDOW_TIME = float(os.getenv("INTERCEPT_WINDOW_TIME", "0.010"))
+ INTERCEPT_MAX_SIZE = int(os.getenv("INTERCEPT_MAX_SIZE", "8"))
+-GROUP_INFERENCE = os.getenv("GROUP_INFERENCE", "1").strip().lower() not in {"0", "false", "no", "off"}
++GROUP_INFERENCE = False

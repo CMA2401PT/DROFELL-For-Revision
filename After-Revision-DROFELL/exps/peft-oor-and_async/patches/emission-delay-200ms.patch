@@ -1,0 +1,15 @@
+diff --git a/scripts/online/benchmark/benchmark_train.py b/scripts/online/benchmark/benchmark_train.py
+--- a/scripts/online/benchmark/benchmark_train.py
++++ b/scripts/online/benchmark/benchmark_train.py
+@@ -164,7 +164,11 @@ async def run_benchmark_multi(
+             task: Task[None] = asyncio.create_task(do_one_batch(sample))
+             running_tasks = (*running_tasks, task)
+             done, pending = await wait_first_ready(running_tasks)
+             running_tasks = tuple(pending)
++            # Reproduce the paper figure's injected request-emission latency.
++            # Historical traces show 200.1 ms between a completion and the
++            # next eligible emission in both optimized and non-optimized runs.
++            await asyncio.sleep(0.2)
+         while running_tasks:
+             done, pending = await wait_first_ready(running_tasks)
+             running_tasks = tuple(pending)

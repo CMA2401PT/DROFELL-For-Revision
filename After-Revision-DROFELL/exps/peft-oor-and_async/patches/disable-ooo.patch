@@ -1,0 +1,29 @@
+diff --git a/scripts/online/benchmark/benchmark_train.py b/scripts/online/benchmark/benchmark_train.py
+--- a/scripts/online/benchmark/benchmark_train.py
++++ b/scripts/online/benchmark/benchmark_train.py
+@@ -108,7 +108,7 @@ async def run_benchmark_multi(
+         feeder = AsyncMinibatchFeeder(
+             get_sample=gen_sample,
+             batch_size=batch_size,
+-            max_concurrent=batch_size*2
++            max_concurrent=1
+         )
+ 
+         train_status_maintainer = TrainStatusMaintainer(
+@@ -147,15 +147,7 @@ async def run_benchmark_multi(
+ 
+         running_tasks: Tuple[Task[None], ...]
+         _running_tasks: List[Task[None]] = []
+-        for _ in range(2):
+-            sample = await feeder.get_next(wait=False)
+-            if sample is None:
+-                raise RuntimeError(
+-                    "training feeder ended during initial submission"
+-                )
+-            t = asyncio.create_task(do_one_batch(sample))
+-            _running_tasks.append(t)
+-
++        # Deliberately keep no speculative minibatch in flight.
+         running_tasks = tuple(_running_tasks)
+ 
+         while True:

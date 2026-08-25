@@ -1,0 +1,355 @@
+# Adapted from turboderp exllama: https://github.com/turboderp/exllama
+import torch
+import torch.nn as nn
+import math
+from cuda_extends.exllama import Q4MatrixV2, TuningParams, CacheV2
+from cuda_extends.exllama import ExllamaQ4ForwardOnlyLinearFunction, ExllamaQ4LinearFunction
+from typing import Callable, List
+
+import global_opts
+
+
+# class QUANT_FORWARD_METHOD(Enum):
+#     # EXLLAMA_FASTFORWARD_FASTBACKWARD               ="float16.fastforward.fastbackward"
+#     # EXLLAMA_FASTFORWARD_SAFEBACKWARD               ="float16.fastforward.safebackward"
+#     # EXLLAMA_SAFEFORWARD_SAFEBACKWARD               ="float16.safeforward.safebackward"
+#     # EXLLAMA_SAFEFORWARD_SAFEBACKWARD_CACHEWEIGHT   ="float16.safeforward.safebackward.weight_cache"
+#     EXLLAMA_NO_CACHE = "exllama_no_cache"
+#     EXLLAMA_WITH_CACHE = "exllama_with_cache"
+#     # EXLLAMA_TORCH = "exllama_torch"
+#     # EXLLAMA_BFP16_SAFEFORWARD_SAFEBACKWARD          ="bfloat16.safeforward.safebackward"
+#     # EXLLAMA_BFP16_SAFEFORWARD_SAFEBACKWARD_CACHEWEIGHT="bfloat16.safeforward.safebackward.weight_cache"
+#     # TORCH = "torch"
+
+# _forward_method = QUANT_FORWARD_METHOD.EXLLAMA_NO_CACHE
+
+# @contextmanager
+# def quant_forward_method(method: QUANT_FORWARD_METHOD):
+#     global _forward_method
+#     _old_forward_method = _forward_method
+#     _forward_method = method
+#     yield
+#     _forward_method = _old_forward_method
+
+
+# # exllama_buffer_hold = {}
+# # class ExtraQuantInfo(object):
+# #     def __init__(self, device, dtype) -> None:
+# #         self.max_dq_buffer_size = 1
+# #         self.max_inner_outer_dim = 1
+# #         self.max_input_size = 1
+# #         self.device = device
+# #         self.dtype = dtype
+
+# #     def update_max_dq_buffer_size(self, size):
+# #         self.max_dq_buffer_size = max(size, self.max_dq_buffer_size)
+
+# #     def update_max_inner_outer_dim(self, *args):
+# #         for val in args:
+# #             self.max_inner_outer_dim = max(self.max_inner_outer_dim, val)
+
+# #     def prepare_buffers(self):
+# #         global exllama_buffer_hold
+# #         temp_state = torch.zeros(
+# #             (self.max_input_size, self.max_inner_outer_dim), dtype=torch.float16, device=self.device)
+# #         temp_dq = torch.zeros((1, self.max_dq_buffer_size),
+# #                               dtype=torch.float16, device=self.device)
+# #         exllama_buffer_hold = {'temp_state': temp_state, 'temp_dq': temp_dq}
+# #         prepare_buffers(self.device, temp_state, temp_dq)
+
+# #     def set_tuning_params(self):
+# #         matmul_recons_thd = 8
+# #         matmul_fused_remap = False
+# #         matmul_no_half2 = False
+# #         set_tuning_params(matmul_recons_thd,
+# #                           matmul_fused_remap, matmul_no_half2)
+
+class QuantLinearV2(nn.Module):
+    """Linear layer implementation with per-group 4-bit quantization of the weights"""
+
+    def __init__(self, group_size: int, in_features: int, out_features: int, bias: bool, use_act_order: bool):
+        super().__init__()
+        self.infeatures = in_features
+        self.outfeatures = out_features
+        self.bits = 4
+        self.group_size = group_size if group_size != -1 else in_features
+        self.maxq = 2 ** self.bits - 1
+        self.maxq = 2 ** self.bits - 1
+
+        assert in_features % 32 == 0
+        assert in_features % self.group_size == 0
+        assert out_features % 32 == 0
+
+        self.register_buffer(
+            'qweight',
+            torch.zeros((in_features // 32 * self.bits,
+                        out_features), dtype=torch.int32)
+        )
+        self.register_buffer(
+            'qzeros',
+            torch.zeros((math.ceil(in_features / self.group_size),
+                        out_features // 32 * self.bits), dtype=torch.int32)
+        )
+        self.register_buffer(
+            'scales',
+            torch.zeros((math.ceil(in_features / self.group_size),
+                        out_features), dtype=torch.float16)
+        )
+        self.register_buffer(
+            'g_idx',
+            torch.tensor(
+                [i // self.group_size for i in range(in_features)], dtype=torch.int32)
+        )
+
+        if bias:
+            self.register_buffer('bias', torch.zeros(out_features, dtype=torch.float16))
+        else:
+            self.bias = None
+
+        self.use_act_order = use_act_order
+        # self.forward_method = QUANT_FORWARD_METHOD.EXLLAMA_NO_CACHE
+
+    def post_init(self, tunning_params: TuningParams, cache: CacheV2):
+        assert self.qweight.device.type == "cuda"
+        assert self.qweight.device.index is not None
+        self.q4_matrix = Q4MatrixV2(
+            self.qweight,
+            self.qzeros,
+            self.scales,
+            self.infeatures, self.outfeatures,
+            self.g_idx.cpu() if self.use_act_order else None,
+            self.use_act_order,
+            tuning_params=tunning_params,
+            cache=cache
+        )
+        if global_opts.RECONSTRUCTE_WEIGTH_FLOAT16:
+            self.q4_matrix.reconstruct_weight(dtype=torch.float16)
+        if global_opts.RECONSTRUCTE_WEIGTH_BFLOAT16:
+            self.q4_matrix.reconstruct_weight(dtype=torch.bfloat16)
+
+    def get_torch_weights(self):
+        zeros = torch.bitwise_right_shift(
+            torch.unsqueeze(self.qzeros, 2).expand(-1, -1, 32 // self.bits),
+            self.wf.unsqueeze(0)
+        ).to(torch.int16 if self.bits == 8 else torch.int8)
+        torch.bitwise_and(zeros, (2 ** self.bits) - 1, out=zeros)
+
+        zeros = zeros + 1
+        zeros = zeros.reshape(self.scales.shape)
+
+        weight = torch.bitwise_right_shift(
+            torch.unsqueeze(self.qweight, 1).expand(-1, 32 // self.bits, -1),
+            self.wf.unsqueeze(-1)
+        ).to(torch.int16 if self.bits == 8 else torch.int8)
+        torch.bitwise_and(weight, (2 ** self.bits) - 1, out=weight)
+
+        weight = weight.reshape(
+            weight.shape[0] * weight.shape[1], weight.shape[2])
+        num_itr = self.g_idx.shape[0] // self.infeatures
+        if num_itr == 1:
+            weights = (self.scales[self.g_idx.long()] *
+                       (weight - zeros[self.g_idx.long()]))
+        else:
+            num_dim = self.g_idx.shape[0] // num_itr
+            weights_splits: List[torch.Tensor] = []
+            for i in range(num_itr):
+                scale_i = self.scales[:, i * num_dim:(i + 1) * num_dim]
+                weight_i = weight[:, i * num_dim:(i + 1) * num_dim]
+                zeros_i = zeros[:, i * num_dim:(i + 1) * num_dim]
+                g_idx_i = self.g_idx[i * num_dim:(i + 1) * num_dim]
+                weights_splits.append(scale_i[g_idx_i.long()]
+                                      * (weight_i - zeros_i[g_idx_i.long()]))
+            weights = torch.cat(weights_splits, dim=1)
+        return weights
+
+    # def set_forward_method(self, method: QUANT_FORWARD_METHOD):
+    #     self.forward_method = method
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # if self.forward_method == QUANT_FORWARD_METHOD.EXLLAMA_NO_CACHE:
+        #     if x.requires_grad:
+        #         return ExllamaQ4LinearFunction.apply(x, self.q4_matrix, self.bias, False)  # type: ignore
+        #     else:
+        #         return ExllamaQ4ForwardOnlyLinearFunction.apply(x, self.q4_matrix, self.bias)  # type: ignore
+        # elif self.forward_method == QUANT_FORWARD_METHOD.EXLLAMA_WITH_CACHE:
+        if x.requires_grad:
+            return ExllamaQ4LinearFunction.apply(x, self.q4_matrix, self.bias, global_opts.REUSE_RECONSTRUCT_CACHE_WHEN_GRAD)  # type: ignore
+        else:
+            return ExllamaQ4ForwardOnlyLinearFunction.apply(x, self.q4_matrix, self.bias)  # type: ignore
+        # else:
+        #     raise NotImplementedError(self.forward_method)
+        # elif self.forward_method == QUANT_FORWARD_METHOD.EXLLAMA_TORCH:
+        #     if x.requires_grad:
+        #         return ExllamaQ4LinearFunctionSafe.apply(x, self.q4_matrix, self.bias)
+        #     else:
+        #         return ExllamaQ4ForwardOnlyLinearFunction.apply(x, self.q4_matrix, self.bias)
+        # elif _forward_method == QUANT_FORWARD_METHOD.EXLLAMA_SAFEFORWARD_SAFEBACKWARD:
+        #     if x.requires_grad:
+        #         return ExllamaQ4LinearFunction.apply(x,self.q4_matrix,self.bias,x.dtype==torch.bfloat16,False,False,False)
+        #     else:
+        #         return ExllamaQ4ForwardOnlyLinearFunction.apply(x,self.q4_matrix,self.bias,x.dtype==torch.bfloat16,False)
+        # elif _forward_method == QUANT_FORWARD_METHOD.EXLLAMA_SAFEFORWARD_SAFEBACKWARD_CACHEWEIGHT:
+        #     if x.requires_grad:
+        #         return ExllamaQ4LinearFunction.apply(x,self.q4_matrix,self.bias,x.dtype==torch.bfloat16,False,False,True)
+        #     else:
+        #         return ExllamaQ4ForwardOnlyLinearFunction.apply(x,self.q4_matrix,self.bias,x.dtype==torch.bfloat16,False)
+        # elif _forward_method == QUANT_FORWARD_METHOD.EXLLAMA_BFP16_SAFEFORWARD_SAFEBACKWARD:
+        #     return ExllamaQ4LinearFunction.apply(x,self.q4_matrix,self.bias,True,False,False,False)
+        # elif _forward_method == QUANT_FORWARD_METHOD.EXLLAMA_BFP16_SAFEFORWARD_SAFEBACKWARD_CACHEWEIGHT:
+        #     return ExllamaQ4LinearFunction.apply(x,self.q4_matrix,self.bias,True,False,False,True)
+        # elif _forward_method == QUANT_FORWARD_METHOD.EXLLAMA_SAFE_GRAD:
+        #     return self.exllama_safe_grad_forward(x,False)
+        # elif _forward_method == QUANT_FORWARD_METHOD.EXLLAMA_SAFE_GRAD_WITH_CACHE:
+        #     return self.exllama_safe_grad_forward(x,True)
+        # elif self.forward_method == QUANT_FORWARD_METHOD.TRITON:
+        #     return self.triton_forward(x)
+        # elif self.forward_method == QUANT_FORWARD_METHOD.GPTQ_CUDA:
+        #     return self.gptq_cuda_forward(x)
+        # elif self.forward_method == QUANT_FORWARD_METHOD.TORCH:
+        #     return self.torch_forward(x)
+        # else:
+        #     assert False, f"unknown method: {self.forward_method}"
+
+    # def post_init_q4(self,tunning_params:TuningParams,shared_cache:SharedCache):
+
+    # def exllama_forward(self, x):
+    #     out = self.q4_matrix.matmul(x)
+    #     if self.bias is not None:
+    #         out.add_(self.bias)
+    #     return out
+
+    # def exllama_backward(self, out):
+    #     # if put this in auto grad, will raise a cuda illegal memory visit error
+    #     x_grad = self.q4_matrix.matmul_t(out)
+    #     # self.bias has no effect on x
+    #     # if self.bias is not None:
+    #     #     out.add_(self.bias)
+    #     return x_grad
+
+    # def exllama_safe_grad_forward(self, x,with_cache):
+    #     if x.dtype==torch.float16:
+    #         if with_cache:
+    #             return Q4LinearFunctionSafeWithCache.apply(x, self.q4_matrix, self.bias)
+    #         else:
+    #             return Q4LinearFunctionSafe.apply(x, self.q4_matrix, self.bias)
+    #     elif x.dtype==torch.bfloat16:
+    #         if with_cache:
+    #             return Q4LinearFunctionSafeBFloat16WithCache.apply(x,self.q4_matrix,self.bias)
+    #         else:
+    #             return Q4LinearFunctionSafeBFloat16.apply(x,self.q4_matrix,self.bias)
+    #     else:
+    #         assert False,f"x.type can only be torch.float16 or torch.bfloat16, but get {x.type}"
+
+    # def exllama_quick_grad_forward(self, x):
+    #     return Q4LinearFunctionQuick.apply(x, self.q4_matrix, self.bias)
+
+    # def gptq_cuda_forward(self, x):
+    #     out_shape = x.shape[:-1] + (self.outfeatures,)
+    #     x = x.reshape(-1, x.shape[-1])
+    #     if (not self.autogptq_cuda_available) or (self.kernel_switch_threshold > 0 and x.shape[0] >= self.kernel_switch_threshold):
+    #         assert False, f"autogptq_cuda_available={self.autogptq_cuda_available}, kernel_switch_threshold={self.kernel_switch_threshold} x.shape[0]={x.shape[0]}"
+    #     out = torch.zeros((x.shape[0], self.outfeatures),
+    #                       device=x.device, dtype=torch.float32)
+    #     self.autogptq_cuda.vecquant4matmul(
+    #         x.float(), self.qweight, out, self.scales.float(), self.qzeros, self.g_idx)
+    #     out = out.half().reshape(out_shape)
+    #     out = out + self.bias if self.bias is not None else out
+    #     return out
+
+    # def torch_forward(self, x):
+    #     target_type = x.dtype
+    #     assert target_type == torch.float16 or target_type == torch.bfloat16
+    #     out_shape = x.shape[:-1] + (self.outfeatures,)
+    #     x = x.reshape(-1, x.shape[-1])
+    #     weights = self.get_torch_weights().to(x)
+    #     out = torch.matmul(x, weights)
+    #     out = out.to(target_type).reshape(out_shape)
+    #     out = out + self.bias.to(target_type) if self.bias is not None else out
+    #     return out
+
+    # def triton_forward(self,x):
+    #     out_shape = x.shape[:-1] + (self.outfeatures,)
+    #     quant_linear_fn = QuantLinearFunction if x.requires_grad else QuantLinearInferenceOnlyFunction
+    #     out = quant_linear_fn.apply(
+    #         x.reshape(-1, x.shape[-1]),
+    #         self.qweight,
+    #         self.scales,
+    #         self.qzeros,
+    #         self.g_idx,
+    #         self.bits,
+    #         self.maxq
+    #     )
+    #     out = out.half().reshape(out_shape)
+    #     out = out + self.bias if self.bias is not None else out
+    #     return out
+
+
+class QunatLinearHolderV2(object):
+    def __init__(self, quantization_group_size: int, use_act_order: bool) -> None:
+        self.quantization_group_size = quantization_group_size
+        self.use_act_order = use_act_order
+        self.quant_linears: list[QuantLinearV2] = []
+
+    def apply(self, func: Callable[[QuantLinearV2], None]):
+        [func(l) for l in self.quant_linears]
+        return self
+
+    # def set_forward_method(self, method: QUANT_FORWARD_METHOD):
+    #     self.apply(lambda quant_linear: quant_linear.set_forward_method(method))
+    #     return self
+
+    def post_init(self, tunning_params: TuningParams, shared_cache: CacheV2):
+        self.apply(lambda quant_linear: quant_linear.post_init(tunning_params, shared_cache))
+        return self
+
+    def set_tuning_param(self, tuning_param: TuningParams):
+        self.apply(lambda quant_linear: quant_linear.q4_matrix.set_tuning_params(tuning_param))
+        return self
+
+    def make_linear(self, in_features: int, out_features: int, bias: bool = False) -> QuantLinearV2:
+        linear = QuantLinearV2(group_size=self.quantization_group_size,
+                               in_features=in_features, out_features=out_features,
+                               bias=bias,
+                               use_act_order=self.use_act_order)
+        self.quant_linears.append(linear)
+        return linear
+
+        # self.max_weight_elements = 0
+        # self.max_x_featrues = 0
+
+    # def _post_process(self, linear: QuantLinear):
+    #     self.quant_linears.append(linear)
+    #     self.max_weight_elements = max(self.max_weight_elements, linear.qweight.numel()*8)
+    #     self.max_x_featrues = max(self.max_x_featrues, linear.infeatures, linear.outfeatures)
+    #     return self
+# quant_config = {}
+# def make_quant_linear(infeatures, outfeatures, bias)->QuantLinear:
+#     return quant_config["make_linear"](infeatures=infeatures, outfeatures=outfeatures, bias=bias)
+
+# @contextmanager
+# def quant_gen_config(quantization_group_size,use_act_order):
+#     global quant_config
+#     old_config = quant_config
+#     # quant_config["config"] = config
+#     # device = torch.zeros((0), device=device).device
+#     # print(device)
+#     # quant_config["device"] = device
+#     # quantization_bit = config["bits"]
+#     # quantization_group_size = config["group_size"]
+#     # quantization_use_act_order = config["desc_act"]
+#     # assert not quantization_use_act_order
+#     # extra_info = ExtraQuantInfo(device, dtype)
+#     # extra_info.max_input_size = max_input_length if quantization_use_act_order else 1
+
+#     def make_linear(infeatures, outfeatures, bias):
+#         linear = QuantLinear(group_size=quantization_group_size,
+#                              infeatures=infeatures, outfeatures=outfeatures,
+#                              bias=bias,
+#                              use_act_order=use_act_order)
+#         # extra_info.update_max_dq_buffer_size(linear.qweight.numel() * 8)
+#         # extra_info.update_max_inner_outer_dim(
+#         #     linear.infeatures, linear.outfeatures)
+#         return linear
+#     quant_config["make_linear"] = make_linear
+#     yield
+#     quant_config = old_config

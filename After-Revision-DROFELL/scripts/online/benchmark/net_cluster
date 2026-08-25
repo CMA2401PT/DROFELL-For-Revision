@@ -1,0 +1,150 @@
+#!/bin/bash
+if [ "$(id -u)" -ne 0 ] && [ "${1:-}" != "info" ]; then
+    exec sudo -E "$0" "$@"
+fi
+set -e
+echo "UID=$(id -u)"
+if [ -z "$BRIDGE" ]; then
+    echo must specific BRIDGE=$BRIDEG
+    exit -1
+fi
+
+if [ -z "$SUBNET" ]; then
+    echo must specific SUBNET=$SUBNET
+    exit -1
+fi
+
+if [ -z "$NSPREFIX" ]; then
+    echo must specific NSPREFIX=$NSPREFIX
+    exit -1
+fi
+
+if [ -z "$LAT" ]; then
+    echo must specific LAT=$LAT
+    exit -1
+fi
+
+
+if [ -z "$BW" ]; then
+    echo must specific BW=$BW
+    exit -1
+fi
+
+list_ns_by_prefix() {
+    ip netns list 2>/dev/null \
+        | awk '{print $1}' \
+        | grep -E "^${NSPREFIX}"
+}
+
+info(){
+    echo BRIDGE=$BRIDGE
+    echo SUBNET=$SUBNET
+    echo LAT=$LAT
+    echo BW=$BW
+    echo all current ns under $NSPREFIX: `list_ns_by_prefix`
+}
+
+cmd_up() {
+    if ip link show $BRIDGE &>/dev/null; then
+        echo "[OK] bridge $BRIDGE already exists"
+        exit 0
+    fi
+
+    echo "[+] Creating bridge $BRIDGE"
+    ip link add name $BRIDGE type bridge
+    ip link set $BRIDGE up
+    ip addr add ${SUBNET}.254/24 dev $BRIDGE 2>/dev/null || true
+
+    echo "[+] Created bridge $BRIDGE"
+}
+
+cmd_down() {
+    echo "[+] Removing namespaces with prefix ${NSPREFIX}"
+
+    for ns in `list_ns_by_prefix`; do
+        echo "[-] Deleting namespace $ns"
+        VETH_HOST="v-${ns}"
+        ip netns del $ns 2>/dev/null || true
+        ip link del $VETH_HOST 2>/dev/null || true
+    done
+
+    if ip link show $BRIDGE &>/dev/null; then
+        echo "[+] Deleting bridge $BRIDGE"
+        ip link set $BRIDGE down 2>/dev/null || true
+        ip link del $BRIDGE 2>/dev/null || true
+    else
+        echo "[OK] bridge $BRIDGE does not exist"
+    fi
+
+    echo "[OK] Cleanup finished"
+}
+
+cmd_reconfig() {
+    for ns in `list_ns_by_prefix`; do 
+        echo "[+] Reconfig TC: $ns DEV: e-$ns to delay=$LAT, bandwidth=$BW"
+        echo "ip netns exec $ns tc qdisc replace dev e-$ns root netem delay $LAT rate $BW"
+        ip netns exec $ns tc qdisc replace dev e-$ns root netem delay $LAT rate $BW
+    done
+}
+
+cmd_run() {
+    if [ -z "$ID" ]; then
+        echo must specific ID=$ID
+        exit -1
+    fi
+    local NSNAME="$NSPREFIX${ID}"
+    local VETH_HOST="v-${NSNAME}"
+    local VETH_NS="e-${NSNAME}"
+    local IPADDR="${SUBNET}.${ID}"
+    local USER_CMD="$@"
+
+    echo "[+] Creating namespace $NSNAME"
+    ip netns del $NSNAME || true
+    ip link del $VETH_HOST 2>/dev/null || true 
+    ip netns add $NSNAME
+
+    echo "[+] Creating veth: $VETH_HOST <-> $VETH_NS"
+    ip link add $VETH_HOST type veth peer name $VETH_NS
+
+    echo "[+] Attaching $VETH_HOST to $BRIDGE"
+    ip link set $VETH_HOST master $BRIDGE
+    ip link set $VETH_HOST up
+
+    echo "[+] Moving $VETH_NS into namespace $NSNAME"
+    ip link set $VETH_NS netns $NSNAME
+
+    echo "[+] Configuring IP $IPADDR"
+    ip netns exec $NSNAME ip addr add ${IPADDR}/24 dev $VETH_NS
+    ip netns exec $NSNAME ip link set $VETH_NS up
+    ip netns exec $NSNAME ip link set lo up
+
+    echo "[+] Applying TC: $NSNAME (delay=$LAT, bandwidth=$BW)"
+    ip netns exec $NSNAME tc qdisc add dev $VETH_NS root netem delay $LAT rate $BW
+
+    echo "[+] Running command in namespace ${NSNAME}"
+    ip netns exec $NSNAME $USER_CMD
+}
+
+
+case "$1" in
+    info)
+        shift
+        info
+        ;;
+    reconfig)
+        shift
+        cmd_reconfig
+        ;;
+    up)
+        shift
+        cmd_up "$@"
+        ;;
+    down)
+        shift 
+        cmd_down "$@"
+        ;;
+    run)
+        shift
+        cmd_run "$@"
+        ;;
+esac

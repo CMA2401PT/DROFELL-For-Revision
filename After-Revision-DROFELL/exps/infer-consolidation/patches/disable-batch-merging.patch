@@ -1,0 +1,12 @@
+diff --git a/scripts/online/common_nodes.py b/scripts/online/common_nodes.py
+--- a/scripts/online/common_nodes.py
++++ b/scripts/online/common_nodes.py
+@@ -214,7 +214,7 @@ def dealer_coro(
+             container=container,
+             memory_config=configured_memory,
+             max_seq_len=configured_inference.graph_max_context_len,
+-            max_concurrency=configured_inference.max_concurrency,
++            max_concurrency=1,
+             # type: ignore[arg-type]
+             decoder_implement=configured_inference.decoder_backend,
+         )

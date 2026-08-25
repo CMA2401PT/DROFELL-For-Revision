@@ -1,0 +1,8 @@
+SEQS=1  SEQLEN=36001  python benchmark_infer.py --profile 7B --output results/infer-scale/7B-1-36K && \
+SEQS=4  SEQLEN=9001   python benchmark_infer.py --profile 7B --output results/infer-scale/7B-4-9K && \
+SEQS=8  SEQLEN=4501   python benchmark_infer.py --profile 7B --output results/infer-scale/7B-8-4500 && \
+SEQS=16 SEQLEN=2250   python benchmark_infer.py --profile 7B --output results/infer-scale/7B-16-2250
+
+SEQS=16 SEQLEN=2502   python benchmark_infer.py --profile 7B --output results/infer-scale/7B-2-16-2500 && \
+SEQS=32 SEQLEN=2502   python benchmark_infer.py --profile 7B --output results/infer-scale/7B-2-32-2500 && \
+SEQS=1  SEQLEN=80002  python benchmark_infer.py --profile 7B --output results/infer-scale/7B-2-1-80K

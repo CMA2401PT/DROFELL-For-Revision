@@ -1,0 +1,20 @@
+diff --git a/scripts/online/common_nodes.py b/scripts/online/common_nodes.py
+--- a/scripts/online/common_nodes.py
++++ b/scripts/online/common_nodes.py
+@@ -16,6 +16,7 @@ from node.backbone import BackboneNode
+ from node.base import BaseNode
+ from node.dealer_node.dealer_node import BackboneSelectConfig, DealerNode, ModelTargets
+ from operators.container.base_container import SharedBaseContainer
++from operators.container.container import NonAsyncContainer
+ from orbit.defines import Context
+ from orbit.link.extender import ContextNetExtender
+ 
+@@ -161,7 +162,7 @@ def dealer_coro(
+ 
+     net_extend = ContextNetExtender(ctx)
+     device = torch.zeros((0,), device=device_str).device
+-    container = SharedBaseContainer(torch.cuda.Stream(device=device))
++    container = NonAsyncContainer(torch.cuda.Stream(device=device))
+ 
+     base_node = BaseNode(ctx)
+     base_node.perf_net = net_extend.pref_net

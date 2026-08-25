@@ -1,0 +1,15 @@
+diff --git a/dealers/common/brain.py b/dealers/common/brain.py
+--- a/dealers/common/brain.py
++++ b/dealers/common/brain.py
+@@ -112,9 +112,9 @@ class Operate(Generic[RetType]):
+     ):
+         ret = await self.fut
+         if self.sync is not None:
+-            on_sync_begin()
++            # Keep the scheduler barrier while synchronously waiting for CUDA.
+             await self.sync
+-            on_sync_done()
++            # This reproduces the train-path semantics of the historical stash.
+         return ret
+ 
+     def __getstate__(self):

@@ -1,0 +1,120 @@
+diff --git a/node/flags.py b/node/flags.py
+--- a/node/flags.py
++++ b/node/flags.py
+@@ -3,14 +3,13 @@ import os
+ from typing import Literal
+ 
+ 
+-INTERCEPT_WINDOW_TIME = float(os.getenv("INTERCEPT_WINDOW_TIME", "0.010"))
++INTERCEPT_WINDOW_TIME = 0.0
+ INTERCEPT_MAX_SIZE = int(os.getenv("INTERCEPT_MAX_SIZE", "8"))
+-GROUP_INFERENCE = os.getenv("GROUP_INFERENCE", "1").strip().lower() not in {"0", "false", "no", "off"}
++GROUP_INFERENCE = False
+ 
+ 
+ def SHOULD_INTERCEPT(step: int):
+-    # 1,4,16,64,256...
+-    return ((step & (step - 1)) == 0 and (step % 3 == 1))
++    return False
+ 
+ 
+ async def InspectPostpone(kind: Literal[
+diff --git a/node/infer/sender.py b/node/infer/sender.py
+--- a/node/infer/sender.py
++++ b/node/infer/sender.py
+@@ -51,9 +51,14 @@ class InferBatchSender:
+                 actual_size=1,
+                 configured_window_seconds=flags.INTERCEPT_WINDOW_TIME,
+             )
+-            if send_cb is not None:
+-                send_cb()
+-            self.base_send((target, API_GroupedInferTask, GroupedInferTask(tasks=[task])), True)
++            async def send_one() -> None:
++                await asyncio.sleep(0)
++                if send_cb is not None:
++                    send_cb()
++                self.base_send(
++                    (target, API_GroupedInferTask, GroupedInferTask(tasks=[task])), True
++                )
++            asyncio.create_task(send_one())
+             return
+         if flags.SHOULD_INTERCEPT(task.task.step):
+             if start_trap_cb is not None:
+diff --git a/dealers/common/barrier.py b/dealers/common/barrier.py
+--- a/dealers/common/barrier.py
++++ b/dealers/common/barrier.py
+@@ -11,8 +11,6 @@ class FreeStateOpMantainer:
+ 
+     def add_free_op(self, name: str):
+         self.free_op[name] += 1
+-        if self.barrier is None:
+-            self.barrier = asyncio.Future()
+ 
+     def remove_free_op(self, name: str):
+         self.free_op[name] -= 1
+@@ -44,11 +42,5 @@ class FreeStateOpMantainer:
+             del self.managed_op[name]
+         self.free_op[name] += 1
+-        if self.barrier is None:
+-            self.barrier = asyncio.Future()
+ 
+     async def wait(self):
+-        if self.barrier is None:
+-            return
+-        else:
+-            b = self.barrier
+-            await b
++        return
+diff --git a/dealers/real_basic/basic.py b/dealers/real_basic/basic.py
+--- a/dealers/real_basic/basic.py
++++ b/dealers/real_basic/basic.py
+@@ -146,8 +146,6 @@ class BasicBrain(BasicBrainOperates):
+         while True:
+             await self.wait_task()
+             # postpone until all activate tasks complete
+-            await self.container.step("", lambda: None)
+-            await self.barrier_maintainer.wait()
+             if await self._priority_operate():
+                 continue
+             await self._restricted_operate()
+diff --git a/dealers/memory_schedule/brain.py b/dealers/memory_schedule/brain.py
+--- a/dealers/memory_schedule/brain.py
++++ b/dealers/memory_schedule/brain.py
+@@ -183,8 +183,6 @@ class Brain(BasicBrainOperates):
+             assert not self.update_and_check_oom(), self.restriction
+             await self.wait_task()
+             # postpone until all activate tasks complete
+-            await self.container.step("", lambda: None)
+-            await self.barrier_maintainer.wait()
+             if await self._operate():
+                 # print("MEMORY:")
+                 # print(self.memory_modeling.env.detail_memory())
+diff --git a/scripts/online/common_nodes.py b/scripts/online/common_nodes.py
+--- a/scripts/online/common_nodes.py
++++ b/scripts/online/common_nodes.py
+@@ -16,6 +16,7 @@ from node.backbone import BackboneNode
+ from node.base import BaseNode
+ from node.dealer_node.dealer_node import BackboneSelectConfig, DealerNode, ModelTargets
+ from operators.container.base_container import SharedBaseContainer
++from operators.container.container import NonAsyncContainer
+ from orbit.defines import Context
+ from orbit.link.extender import ContextNetExtender
+ 
+@@ -161,7 +162,7 @@ def dealer_coro(
+ 
+     net_extend = ContextNetExtender(ctx)
+     device = torch.zeros((0,), device=device_str).device
+-    container = SharedBaseContainer(torch.cuda.Stream(device=device))
++    container = NonAsyncContainer(torch.cuda.Stream(device=device))
+ 
+     base_node = BaseNode(ctx)
+     base_node.perf_net = net_extend.pref_net
+@@ -214,7 +215,7 @@ def dealer_coro(
+             container=container,
+             memory_config=configured_memory,
+             max_seq_len=configured_inference.graph_max_context_len,
+-            max_concurrency=configured_inference.max_concurrency,
++            max_concurrency=1,
+             # type: ignore[arg-type]
+             decoder_implement=configured_inference.decoder_backend,
+         )

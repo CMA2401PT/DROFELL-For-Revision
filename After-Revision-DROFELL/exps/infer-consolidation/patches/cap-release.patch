@@ -1,0 +1,84 @@
+diff --git a/node/infer/sender.py b/node/infer/sender.py
+--- a/node/infer/sender.py
++++ b/node/infer/sender.py
+@@ -97,6 +97,15 @@ class InferBatchSender:
+                 fut.set_result(None)
+         self.trappings.append((target, end_time, (task, send_cb), _cancel_trap))
+         self._ev_loop.call_later(flags.INTERCEPT_WINDOW_TIME, _trap_timeup)
++        trapped_for_target = sum(
++            1 for trapped_target, *_ in self.trappings
++            if trapped_target == target
++        )
++        if trapped_for_target >= flags.INTERCEPT_MAX_SIZE \
++                and self._sleep_fut is not None:
++            fut = self._sleep_fut
++            self._sleep_fut = None
++            fut.set_result(None)
+ 
+     def _step(self):
+         pendings = self.pendings
+@@ -104,28 +113,43 @@ class InferBatchSender:
+         self.pendings = {}
+         self.trappings = []
+         current_time = time.time_ns()
+-        for tgt, _tl, _p, _c in trappings:
+-            _lst = self.pendings.get(tgt)
+-            if current_time < _tl and ((_lst is None) or (len(_lst) < flags.INTERCEPT_MAX_SIZE)):
+-                self.trappings.append((tgt, _tl, _p, _c))
+-            else:
+-                _c()
+-                pendings.setdefault(tgt, []).append(_p)
++        trapped_by_target: Dict[
++            str, List[Tuple[str, int, _Pack, _CancelTrap]]
++        ] = {}
++        for item in trappings:
++            trapped_by_target.setdefault(item[0], []).append(item)
++        for target, target_trappings in trapped_by_target.items():
++            release_count = (
++                len(target_trappings) // flags.INTERCEPT_MAX_SIZE
++            ) * flags.INTERCEPT_MAX_SIZE
++            if target in pendings:
++                release_count = len(target_trappings)
++            for index, item in enumerate(target_trappings):
++                _, deadline, pending, cancel = item
++                if index < release_count or current_time >= deadline:
++                    cancel()
++                    pendings.setdefault(target, []).append(pending)
++                else:
++                    self.trappings.append(item)
+         for target, sub_pendings in pendings.items():
+-            record_event(
+-                "consolidation_flush",
+-                target=target,
+-                actual_size=len(sub_pendings),
+-                configured_window_seconds=flags.INTERCEPT_WINDOW_TIME,
+-            )
+-            grouped_tasks = GroupedInferTask(
+-                tasks=[p[0] for p in sub_pendings]
+-            )
+-            for _, cb in sub_pendings:
+-                if cb is None:
+-                    continue
+-                cb()
+-            self.base_send((target, API_GroupedInferTask, grouped_tasks), True)
++            for start in range(0, len(sub_pendings), flags.INTERCEPT_MAX_SIZE):
++                chunk = sub_pendings[start:start + flags.INTERCEPT_MAX_SIZE]
++                record_event(
++                    "consolidation_flush",
++                    target=target,
++                    actual_size=len(chunk),
++                    configured_window_seconds=flags.INTERCEPT_WINDOW_TIME,
++                )
++                grouped_tasks = GroupedInferTask(
++                    tasks=[pending[0] for pending in chunk]
++                )
++                for _, cb in chunk:
++                    if cb is None:
++                        continue
++                    cb()
++                self.base_send(
++                    (target, API_GroupedInferTask, grouped_tasks), True
++                )
+         self._sleep()
+ 
+     async def _postpone(self):

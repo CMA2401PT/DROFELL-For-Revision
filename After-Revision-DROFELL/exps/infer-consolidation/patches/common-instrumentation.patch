@@ -1,0 +1,151 @@
+diff --git a/scripts/online/benchmark/benchmark_infer.py b/scripts/online/benchmark/benchmark_infer.py
+--- a/scripts/online/benchmark/benchmark_infer.py
++++ b/scripts/online/benchmark/benchmark_infer.py
+@@ -178,6 +178,9 @@ class InferInstances:
+             instance: InferControlLike,
+             next_token: int,
+         ) -> None:
++            # Reproduce the paper experiment's deterministic initial arrival
++            # skew.  Every case uses the same delay.
++            await asyncio.sleep(0.001 * seq_i)
+             stopped = False
+             while not stopped:
+                 stopped, next_token, logprobs, detail_traces =\
+@@ -325,6 +328,7 @@ async def run_benchmark_multi(
+     analyzer.speed_info()
+     phase_times: Dict[str, Any] = {
+         "request_start_ns": request_start_ns,
++        "decode_start_ns": st,
+         "prefill_end_ns": prefill_end_ns,
+         "first_token_ns": first_token_ns,
+         "end_ns": benchmark_end,
+diff --git a/node/infer/sender.py b/node/infer/sender.py
+--- a/node/infer/sender.py
++++ b/node/infer/sender.py
+@@ -8,6 +8,7 @@ from orbit.defines import Packet
+ from .. import flags
+ from ..dealer_node.protocols import (API_GroupedInferTask, GroupedInferTask,
+                                      MultiPathInferTask)
++from utils.runtime_metrics import record_event
+ 
+ _Pack = Tuple[MultiPathInferTask, Optional[Callable[[], None]]]
+ _CancelTrap = Callable[[], None]
+@@ -44,6 +45,12 @@ class InferBatchSender:
+         send_cb: Optional[Callable[[], None]] = None,
+     ):
+         if not flags.GROUP_INFERENCE:
++            record_event(
++                "consolidation_bypass",
++                target=target,
++                actual_size=1,
++                configured_window_seconds=flags.INTERCEPT_WINDOW_TIME,
++            )
+             if send_cb is not None:
+                 send_cb()
+             self.base_send((target, API_GroupedInferTask, GroupedInferTask(tasks=[task])), True)
+@@ -105,6 +112,12 @@ class InferBatchSender:
+                 _c()
+                 pendings.setdefault(tgt, []).append(_p)
+         for target, sub_pendings in pendings.items():
++            record_event(
++                "consolidation_flush",
++                target=target,
++                actual_size=len(sub_pendings),
++                configured_window_seconds=flags.INTERCEPT_WINDOW_TIME,
++            )
+             grouped_tasks = GroupedInferTask(
+                 tasks=[p[0] for p in sub_pendings]
+             )
+diff --git a/dealers/memory_schedule/swapper_core.py b/dealers/memory_schedule/swapper_core.py
+--- a/dealers/memory_schedule/swapper_core.py
++++ b/dealers/memory_schedule/swapper_core.py
+@@ -8,5 +8,6 @@ from operators.cache_engine.memory import ScalableCacheEngineMemoryModel
+ from operators.core.swappable.real import CanSwapObject
+ from utils.format import format_size
++from utils.runtime_metrics import record_event
+ from ..real_basic.memory import MemoryBrain, SeqComplexMemoryModel
+ from ..real_basic.basic_operate import BasicBrainOperates
+ from .restriction import MemoryConfig, MemoryLeaf, MemoryNode
+@@ -409,8 +410,14 @@ class SwapperCore:
+     async def prefill_no_swap(self) -> bool:
+         sec = self._select_prefill_no_swap()
+         if sec is None:
+             return False
+         binding, selected = sec
++        record_event(
++            "batch_merge",
++            operation="decoder_prefill",
++            configured_limit=self.base.max_concurrency,
++            actual_size=len(selected),
++        )
+         await self.base.do_prefill(binding, ops=selected)
+         self.commit_infer_batch_access(selected)
+         return True
+@@ -448,8 +455,14 @@ class SwapperCore:
+     async def generating_no_swap(self) -> bool:
+         sec = self._select_generating_no_swap()
+         if sec is None:
+             return False
+         binding, selected, binds = sec
++        record_event(
++            "batch_merge",
++            operation="decoder_generating",
++            configured_limit=self.base.max_concurrency,
++            actual_size=len(selected),
++        )
+         await self.base.do_generating(binding, ops=selected, binds=binds)
+         self.commit_infer_batch_access(selected)
+         return True
+@@ -588,12 +601,18 @@ class SwapperCore:
+         binding, selected, required_memory, non_free_blocks = self._select_generating_swap()
+         swapout_bytes = self._swap_train_ctx(required_memory)
+         required_memory -= swapout_bytes
+         if required_memory > 0:
+             await self._swap_blocks(
+                 req_memory=required_memory,
+                 non_free_blocks=non_free_blocks
+             )
+         print(f"swap generating {len(selected)} tasks")
++        record_event(
++            "batch_merge",
++            operation="decoder_generating_swap",
++            configured_limit=self.base.max_concurrency,
++            actual_size=len(selected),
++        )
+         await self.base.do_generating(binding, ops=selected)
+         self.commit_infer_batch_access(selected)
+         return True
+diff --git a/node/flags.py b/node/flags.py
+--- a/node/flags.py
++++ b/node/flags.py
+@@ -4,5 +4,5 @@ from typing import Literal
+ 
+ 
+-INTERCEPT_WINDOW_TIME = float(os.getenv("INTERCEPT_WINDOW_TIME", "0.001"))
++INTERCEPT_WINDOW_TIME = float(os.getenv("INTERCEPT_WINDOW_TIME", "0.010"))
+ INTERCEPT_MAX_SIZE = int(os.getenv("INTERCEPT_MAX_SIZE", "8"))
+ GROUP_INFERENCE = os.getenv("GROUP_INFERENCE", "1").strip().lower() not in {"0", "false", "no", "off"}
+diff --git a/node/compute_node/infer_node.py b/node/compute_node/infer_node.py
+--- a/node/compute_node/infer_node.py
++++ b/node/compute_node/infer_node.py
+@@ -239,6 +239,10 @@ class ComputeInferNode:
+         together. A target still being initialized follows the standalone path
+         for this round; decoder groups are never merged with one another.
+         """
++        # Cross-stage H+D(+T) graph folding is newer than the paper's
++        # implementation. Keep the standalone H, D, and T graph paths while
++        # excluding this additional scheduling optimization from every case.
++        return None
+         if infer_task.is_prefill or infer_task.navi.is_last:
+             return None
+         next_target, next_is_head, next_is_tail = infer_task.navi.target(1)
+@@ -264,6 +268,9 @@ class ComputeInferNode:
+         decoder: DecodersInferBindingShim,
+     ) -> Optional[TailInferBindingShim]:
+         """Return the ready same-Brain tail immediately after decoder."""
++        # See _decode_plan_from_head: D+T folding is also outside the paper
++        # experiment. Tail still executes through its standalone CUDA graph.
++        return None
+         if infer_task.is_prefill or infer_task.navi.is_last:
+             return None
+         next_target, _, next_is_tail = infer_task.navi.target(1)
