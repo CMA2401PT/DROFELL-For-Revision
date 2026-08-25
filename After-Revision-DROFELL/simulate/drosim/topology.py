@@ -1,24 +1,3 @@
-"""Topology: how logical nodes map onto simulated hosts and devices.
-
-WHY THIS IS A SEPARATE MODULE
------------------------------
-It carries the one distinction the whole reviewer answer rests on. Reviewer 2.7
-asks about scale; the authors' own hardware data shows throughput FALLING as the
-model is split over more GPUs (1 GPU 158.91 tok/s vs 8 GPUs across 8 nodes 78.09).
-On hardware those two effects cannot be separated, because every extra logical
-node also takes a slice of the same finite compute. So the simulator must be able
-to express both mappings and report which one a result came from:
-
-  DEDICATED : one device per logical node. Adds orchestration cost only.
-              Answers "what does the control plane itself cost at scale?"
-  SHARED    : N logical nodes over a fixed device count. Reproduces the hardware
-              regime, including compute contention.
-              Answers "why did the measured curve fall?"
-
-A result that does not say which mapping produced it is uninterpretable, so
-`Topology.report()` always states it (docs/00 §2.0, docs/04 §1).
-"""
-
 from __future__ import annotations
 
 from dataclasses import dataclass, field

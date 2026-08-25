@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-"""Benchmark FasterPickler on real-shaped grouped inference payloads."""
-
 from __future__ import annotations
 
 import argparse

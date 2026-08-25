@@ -1,28 +1,3 @@
-#!/usr/bin/env python3
-"""D1: measure control-plane cost against logical node count, at fixed compute.
-
-This is the question hardware cannot answer (docs/00 §2.0): every extra logical
-node on a fixed set of GPUs also splits compute, so measured slowdown mixes
-orchestration overhead with compute contention. Here the cost model is held
-constant, so what varies is only orchestration.
-
-WHAT IS REAL IN THESE NUMBERS
------------------------------
-Everything reported is computed by DROFELL's own production code:
-
-  * resource-location map size   -> node.infer.infer_ctrl.InferControl.res_location
-  * path search cost + tie set   -> node.path_utils.gen_lowest_energy_paths
-  * keypoint / handle counts     -> node.path_utils.paths_to_keypoints
-  * shadow footprint and CPU     -> node.shadow_node_state.InferStateData
-  * recovery payload             -> InferStateData.gen_init_cfg / coalesce_recovery_tasks
-
-No simulated timing is involved, so these are measurements rather than
-projections -- they hold regardless of cost-model accuracy (docs/03 §5).
-
-Run from the repository root:
-    python simulate/analysis/d1_control_plane_scale.py --out simulate/results/d1_scale.json
-"""
-
 from __future__ import annotations
 
 import argparse

@@ -1,27 +1,3 @@
-#!/usr/bin/env python3
-"""P12: fit and validate the DROSIM cost model from measured per-hop traces.
-
-WHAT THIS PROBE ESTABLISHED (and corrected in the design):
-
-1. The exec->done / done->async boundary is NOT a stable CPU-vs-GPU split.
-   It moves with the dual-queue flag: with dual queues off the time sits in
-   exec->done, with them on it sits in done->async, while the SUM is stable.
-   => Model the SUM as one "service time" term. Do not fit the halves
-      separately (docs/02 §4.3.1, docs/03 §2.3).
-
-2. Service time is nearly FLAT in merged batch size:
-       alpha ~= 1.9 ms,  beta ~= 0.8 us/item  over batch 1..8
-   i.e. p(n) ~= const, the strongest form of the sub-additivity condition the
-   paper assumes in §4.2. Merging 8 operations costs almost the same as one.
-
-3. That single fact predicts measured throughput across all 8 optimisation
-   cases (spanning 2.7x) with r2 ~= 0.95:
-       throughput ~= eta * batch / service_time
-   where eta is ONE fitted pipeline-utilisation constant, not a per-case knob.
-
-Run from the repository root.
-"""
-
 from __future__ import annotations
 
 import argparse

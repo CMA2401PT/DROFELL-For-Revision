@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-"""Audit the L2/L4 active-holder scale result and derive compact claims."""
-
 from __future__ import annotations
 
 import argparse

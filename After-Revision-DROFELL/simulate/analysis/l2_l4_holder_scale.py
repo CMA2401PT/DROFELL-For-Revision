@@ -1,18 +1,3 @@
-#!/usr/bin/env python3
-"""Scale active holders while staying inside the measured L2/L4 shard range.
-
-This experiment deliberately excludes L8. It uses one AutoDL-host profile fitted
-only on L2/L4 fixed-window measurements, keeps the critical path at L=2 or L=4,
-and increases the number of active holders through production redundancy.
-
-The dedicated placement is an isolation experiment: every logical holder gets
-its own modelled device while all nodes share the same host loopback and transfer
-domain. CPU service remains separated by production process domain; there is no
-finite host-wide CPU core pool. The experiment measures control-plane and message
-amplification without introducing device sharing. It is not a claim about a real
-256-GPU single host or a geographically distributed edge network.
-"""
-
 from __future__ import annotations
 
 import argparse

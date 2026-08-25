@@ -1,12 +1,3 @@
-#!/usr/bin/env python3
-"""Run the reviewer-grade 4-vs-8 GPU hop-breakdown matrix.
-
-Each cell is a fresh network process and an independent run. Per-client output
-length is fixed (default 256), avoiding the legacy fixed-total-token confound.
-The underlying infer-scale runner records raw token timelines, graph counters,
-GPU monitoring and opt-in sampled transport/transfer/sync spans.
-"""
-
 from __future__ import annotations
 
 import argparse

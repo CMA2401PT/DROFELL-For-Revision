@@ -1,12 +1,3 @@
-#!/usr/bin/env python3
-"""Measure isolated and concurrent H2D/D2H for real hidden-state tensors.
-
-The pageable path matches DROFELL's current TCP receive and `.to(...,
-non_blocking=True)` behavior. Optional pinned results are reported separately,
-not substituted for the production path. CUDA Events measure stream time while
-`enqueue_cpu_ns` records Python/allocator submission cost.
-"""
-
 from __future__ import annotations
 
 import argparse

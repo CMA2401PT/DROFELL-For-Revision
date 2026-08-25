@@ -1,4 +1,3 @@
-"""P10b: is the operate queue the right seam? Count queues + operate types on infer path."""
 import re, pathlib
 prov = pathlib.Path("dealers/common/provider.py").read_text()
 queues = sorted(set(re.findall(r"brain\.(operates_[a-z_]+)", prov)))

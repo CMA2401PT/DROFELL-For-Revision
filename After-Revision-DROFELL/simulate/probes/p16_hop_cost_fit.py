@@ -1,30 +1,3 @@
-#!/usr/bin/env python3
-"""P16: fit the per-hop cost from the GPU-scale sweep -- the axis DROSIM needs.
-
-WHY THIS PROBE EXISTS
----------------------
-docs/10 §1.1b recorded the honest limit of the p12 calibration: alpha/beta/eta
-were fitted on ONE topology (4 dealers, 4 segments, 16 clients), so nothing in
-the model said how cost grows with the number of segments. That is precisely the
-axis reviewer 2.7 asks about, so the simulator could not extrapolate it.
-
-The 2026-08 GPU-scale matrix supplies the axis directly: the SAME model
-(Llama2-7B, 32 decoders) is split over 1 / 2 / 4 / 8 dealers, i.e. segment
-counts L in {1,2,4,8} with {32,16,8,4} layers each, against 1..128 clients.
-Total decoder work is held constant by construction; only the number of hops
-changes. So at low concurrency (no batching, no queueing) the per-token latency is
-
-    T(L) = W + h * L
-
-where W is the L-independent work (32 decoder layers + head + tail + client
-turnaround) and h is the per-hop cost of one extra logical node on the critical
-path. Both are then identifiable by least squares, and the residual tells us
-whether the decomposition is real or wishful.
-
-Run from the repository root:
-    python simulate/probes/p16_hop_cost_fit.py --out simulate/results/hop_cost_fit.json
-"""
-
 from __future__ import annotations
 
 import argparse

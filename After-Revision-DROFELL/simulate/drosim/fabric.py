@@ -1,28 +1,3 @@
-"""SimFabric: modelled packet transport for DROSIM.
-
-Replaces real TCP plus `tc`/`qdisc` shaping with a latency / bandwidth / queueing
-model on the virtual timeline.
-
-WHY NOT REUSE orbit's "virtual" link type
------------------------------------------
-`orbit/link/extender.py::_virtual_net_src` delivers same-process packets by
-calling `put_packet` directly: zero latency, zero bandwidth limit. Simulating a
-network that way would make every scalability result meaningless, so transport is
-modelled here instead (docs/02 §3.1).
-
-MODELLING DECISIONS (docs/02 §3.2)
-----------------------------------
-1. One "free at" cursor per directed link, so packets on the same link serialise.
-   Without this, 128 nodes sending at once yields absurd throughput.
-2. Defaults match the real `tc` configuration (orbit/examples/tc/Makefile:
-   LAT=50ms BW=100mbit), so simulated and measured runs are directly comparable.
-3. Wire size is the real pickled length, cached per (api, payload shape). A few
-   hundred bytes of control packet must not cost the same as a hidden-state
-   tensor, or weak-network conclusions are wrong.
-4. Loss and partition default to OFF: 3.7/2.11 are out of scope, and enabling
-   them would widen the paper's claims (docs/04 §3).
-"""
-
 from __future__ import annotations
 
 import dataclasses

@@ -1,13 +1,3 @@
-#!/usr/bin/env python3
-"""Fit one AutoDL-host profile on predeclared cells, then evaluate holdouts.
-
-The search is deliberately constrained by the identifiable single-client hop
-term. D2H/H2D and decoder invocation shares are varied as an ensemble; they are
-not claimed to be individually measured. Calibration uses only
-combined-request-agent clients {1,4,16,64}. Clients {2,8,32,128} and every
-persistent-agent cell remain untouched until the final evaluation.
-"""
-
 from __future__ import annotations
 
 import argparse

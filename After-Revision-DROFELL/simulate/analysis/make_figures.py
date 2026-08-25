@@ -1,38 +1,3 @@
-#!/usr/bin/env python3
-"""Render the three figures the simulation line can defend.
-
-STYLE follows the paper's existing figures (seaborn whitegrid, Times New Roman,
-dpi 300), so these drop next to `返修稿/figs/` without looking foreign.
-
-WHY THESE THREE AND NOT MORE
-----------------------------
-Each one answers a distinct half of reviewer 2.7, and each is backed by a
-validation gate rather than by the simulator's own word:
-
-  fig 1  VALIDATION.  Simulated vs measured across the four segment counts the
-         authors actually ran, then extrapolated past them. Establishes that the
-         extrapolation is entitled to be believed -- and marks where measurement
-         stops, because that boundary is the honest part.
-
-  fig 2  THE ANSWER.  Two axes side by side: path length costs 9.5x, network size
-         at fixed path length costs nothing. "Tens to hundreds of nodes" in an
-         edge deployment means more holders, not a longer pipeline, so this is the
-         figure that actually addresses the concern.
-
-  fig 3  RECOVERY.  Overhead of one node failure against network size, plus the
-         replay-window finding. Supports the resilience claim at scale.
-
-DELIBERATELY NOT PLOTTED
-------------------------
-* Absolute throughput at scales with no measured counterpart, as a headline. The
-  extrapolated region is drawn but visually separated, never presented as if it
-  were measured.
-* Anything about output quality. Simulated tokens are faked (docs/04 §2).
-
-Run from the repository root, after the result JSONs exist:
-    python simulate/analysis/make_figures.py --out simulate/figures
-"""
-
 from __future__ import annotations
 
 import argparse

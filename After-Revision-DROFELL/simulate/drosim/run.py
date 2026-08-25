@@ -1,27 +1,3 @@
-"""Assemble and run one simulated DROFELL deployment.
-
-WHAT RUNS HERE IS THE PRODUCTION CODE
--------------------------------------
-`AuxNode`, `AgentNode`, `DealerNode`, `InferNode`, `InferControl`, `Provider`,
-every `Shim`, the STM in `dealers/common/reorder.py` and the shadow state in
-`node/shadow_node_state/` are imported and used UNMODIFIED. Only three things are
-replaced, at the three boundaries where the code touches the physical world:
-
-    orbit Context   -> SimContext  (transport on a virtual timeline)
-    Brain           -> SimBackend  (operator time from the cost model)
-    wall clock      -> VirtualClock
-
-So a simulated run exercises the same admission decisions, the same canon
-semantics, the same recovery orchestration and the same merge policy as hardware.
-That is the entire credibility argument for using it to answer 2.7 (docs/01 §2).
-
-WHAT IS NOT CLAIMED
--------------------
-Token values are faked (`SimBackend`), so this says nothing about output quality.
-Absolute throughput is only as good as the cost model, whose calibration range is
-stated in `cost.py` and re-stated in every manifest this module writes.
-"""
-
 from __future__ import annotations
 
 import json

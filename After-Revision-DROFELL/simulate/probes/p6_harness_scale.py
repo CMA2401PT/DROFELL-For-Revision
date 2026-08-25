@@ -1,4 +1,3 @@
-"""Probe 6: how many logical nodes can one virtual-clock loop carry?"""
 import asyncio as std_asyncio, time, resource
 import extend_asyncio as ea
 from extend_asyncio.std_asyncio import StdEventLoop

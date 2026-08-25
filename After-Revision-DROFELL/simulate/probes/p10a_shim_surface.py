@@ -1,4 +1,3 @@
-"""P10: enumerate the EXACT shim surface the infer hot path needs."""
 import re, pathlib
 src = pathlib.Path("node/compute_node/infer_node.py").read_text()
 # awaited or called shim/binding methods

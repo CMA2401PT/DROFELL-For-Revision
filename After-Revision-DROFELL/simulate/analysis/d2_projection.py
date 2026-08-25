@@ -1,18 +1,3 @@
-#!/usr/bin/env python3
-"""Phase 0 deliverable (D2): analytical projection of control-plane cost vs scale.
-
-Answers reviewer 2.7's "include analytical projections if not feasible" WITHOUT
-depending on the DROSIM implementation, so it stands even if every later phase
-fails (see docs/05 §0).
-
-Every constant here is either read from the real code or measured on hardware;
-nothing is invented. Sources are printed with the results so the table can be
-audited line by line.
-
-Run from the repository root:
-    python simulate/analysis/d2_projection.py --out simulate/results/d2_projection.json
-"""
-
 from __future__ import annotations
 
 import argparse

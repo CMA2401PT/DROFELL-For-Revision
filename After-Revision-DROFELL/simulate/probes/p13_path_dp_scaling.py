@@ -1,27 +1,3 @@
-#!/usr/bin/env python3
-"""P13: measure the real scaling cost of the multi-path DP (`gen_lowest_energy_paths`).
-
-WHY THIS EXISTS
----------------
-The DROSIM design (docs/00 §2.2, claim 2) originally asserted that path search is
-"O(L * P^2), independent of N". Measuring it refuted that claim.
-
-`gen_lowest_energy_paths` does not return one minimum-switch path: it returns
-EVERY path tied at the minimum switch count. When each of L segments has P
-distinct providers, every assignment ties at L-1 switches, so the result set is
-exactly P^L -- exponential in the number of model segments.
-
-This is a genuine scalability boundary in the orchestration layer, on the live
-path (`AgentControlPlane.inspect_fastest_path`, `Backbone*.inspect_fastest_path`,
-and every recovery `lookup_replacement`). It is exactly the kind of limit
-reviewer 2.7 asks about, so it is reported rather than smoothed over.
-
-Real deployed topologies do NOT hit it, because providers are shared across
-consecutive layers, which collapses the tie set (see the second table).
-
-Memory is capped so a blow-up cannot destabilise the host.
-"""
-
 from __future__ import annotations
 
 import argparse

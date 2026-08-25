@@ -1,37 +1,3 @@
-#!/usr/bin/env python3
-"""D3: does recovery cost grow with network size? (2.7 + 1.4 + 2.13)
-
-THE CLAIM UNDER TEST
---------------------
-The paper argues recovery is confined to a recovery domain: it is not broadcast
-and does not propagate through a healthy node. If true, the cost of recovering
-from one node failure must depend on the REPLAY WINDOW (how far the survivor is
-from the last confirmed state) and not on how many nodes exist.
-
-D2 argued this analytically (2 + k control messages, independent of N) and the
-shadow-overhead sweep measured the state size on hardware. What was missing was
-an end-to-end demonstration: actually kill a node in a running deployment and
-measure what recovery costs, at several network sizes.
-
-WHY THIS NEEDS THE SIMULATOR
-----------------------------
-The measured failure matrices go up to 8 logical nodes, which is where the
-authors' hardware ends. The question is what happens at tens of nodes, and the
-answer must hold compute fixed while node count varies -- which hardware cannot do.
-
-WHAT IS REAL IN THESE NUMBERS
------------------------------
-The recovery orchestration is production code: `AgentInferController.recover_handles`
-picks a replacement, `InferStateData.gen_init_cfg` builds the replay window, the
-Dealer re-materialises the frontier. The failure injector reuses the production
-guards, including the per-(seq, hop) duplicate guard without which redundancy
-levels cannot be compared (drosim/failure.py). What is simulated is only how long
-each operator takes.
-
-Run from the repository root:
-    python simulate/analysis/d3_recovery_scale.py --out simulate/results/d3_recovery.json
-"""
-
 from __future__ import annotations
 
 import argparse

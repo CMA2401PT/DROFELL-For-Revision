@@ -1,4 +1,3 @@
-"""Probe 4c: twin predicts real shard memory with zero GPU allocation."""
 import extend_asyncio as ea
 ea.config_impl("py", False)
 import torch, os

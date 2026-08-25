@@ -1,32 +1,3 @@
-"""Failure injection for DROSIM, reusing the production guards verbatim.
-
-WHY THE GUARDS MATTER MORE THAN THE MECHANISM
----------------------------------------------
-`scripts/online/benchmark/network_nodes.py::_embed_failure_injection` samples the
-drop probability per task event at a Dealer, but only for events satisfying THREE
-conditions:
-
-    str(task.task.seq_id).startswith("bench-")   # benchmark traffic only
-    and not duplicate                            # per (seq_id, hop), once
-    and not task.trace_invalid
-
-The middle one is load-bearing for anything that compares redundancy levels. Under
-redundancy r, the same logical step arrives at a Dealer r times over distinct
-paths. Sampling every arrival would make the effective failure rate scale with r,
-so a redundant deployment would look worse purely as an artefact of the injector.
-The guard makes p mean "per non-duplicate task event", which is exactly the
-definition the paper and reply letter use.
-
-Reproducing that here, rather than writing a fresh injector, is what lets a
-simulated failure-rate sweep be read next to the measured one.
-
-WHAT IS DELIBERATELY NOT MODELLED
----------------------------------
-Link partition and packet loss exist in `SimFabric` but stay OFF: reviewer points
-3.7 and 2.11 are out of scope, and switching them on would silently widen what
-the paper claims to have evaluated (docs/04 §3).
-"""
-
 from __future__ import annotations
 
 import random

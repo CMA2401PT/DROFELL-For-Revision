@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-"""Validate and summarize hop-breakdown hardware runs across repeats."""
-
 from __future__ import annotations
 
 import argparse

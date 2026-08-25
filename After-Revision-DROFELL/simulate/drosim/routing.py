@@ -1,36 +1,3 @@
-"""Simplified multi-path selection for DROSIM.
-
-WHY DROSIM DOES NOT USE THE PROTOTYPE'S SELECTOR
-------------------------------------------------
-Path *selection strategy* is explicitly out of scope for the paper. The
-contribution is the multi-path / redundancy / recovery **capability**: that a
-logical task can advance along several paths, that redundant arrivals are
-absorbed by canon, and that a failed node can be rebuilt from shadow state.
-How the paths are chosen is a scheduling algorithm layered on top, which the
-paper deliberately leaves open (see simulate/docs/11).
-
-The prototype therefore ships a coarse placeholder: `gen_lowest_energy_paths`
-runs a DP over switch count and returns EVERY path tied at the minimum, which is
-(r+1)^L in the worst case (measured in probes/p13: 65 536 tied paths at L=16,
-r=2; beyond a 4 GiB budget at L=32). Its consumer immediately collapses that set
-to a keypoint list whose size is linear in L, so the exponential part contributes
-nothing to the result.
-
-Since the simulator's job is to measure how the ORCHESTRATION scales -- not how
-that placeholder scales -- DROSIM substitutes the selector below: greedy,
-node-disjoint, and linear in segment count. Any selector that yields the
-requested number of disjoint paths is adequate for the properties under study.
-
-GUARANTEES
-----------
-* Deterministic: same input -> same output, no RNG.
-* O(L * r) time, no tie-set enumeration.
-* Prefers to stay on the previous segment's provider, preserving the "few
-  switches" preference that motivated the prototype's DP.
-* Paths are node-disjoint where the topology allows, and the shortfall is
-  reported rather than silently ignored.
-"""
-
 from __future__ import annotations
 
 from dataclasses import dataclass

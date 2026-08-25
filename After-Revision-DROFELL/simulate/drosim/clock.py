@@ -1,24 +1,3 @@
-"""Virtual clock event loop for DROSIM.
-
-Replaces physical time with a virtual timeline, so a simulated hour costs
-microseconds of wall clock. Verified in simulate/probes/p1_virtual_clock.py:
-3601 virtual seconds in 0.2 ms of real time, with causal order preserved.
-
-The design decision that makes this cheap: DROFELL already ships its own event
-loop (``extend_asyncio.std_asyncio.StdEventLoop``), so only two methods need
-overriding. In particular ``_run_handles`` -- which implements the dual-queue
-"drain the ready queue, then take one blocking task" policy -- is NOT touched,
-so dual-queue semantics are preserved exactly (docs/02 §2.1).
-
-Time asymmetry (deliberate, see docs/02 §2.2 and docs/03 §5):
-
-* ``time_ns``/``monotonic_ns`` style timestamps are TIMELINE marks and must come
-  from the virtual clock, otherwise recovery-phase durations are nonsense.
-* ``perf_counter_ns`` inside the shadow state measures the CPU cost of the
-  control plane itself. That is a REAL measurement even in simulation, and it is
-  intentionally left on the host clock.
-"""
-
 from __future__ import annotations
 
 import asyncio as _std_asyncio

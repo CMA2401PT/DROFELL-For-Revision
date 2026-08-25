@@ -1,22 +1,3 @@
-#!/usr/bin/env python3
-"""P14: validate the shadow-memory model against the measured sweep.
-
-Source: 一稿返修/整理后就绪的实验/影子节点开销/ (7B/70B x shard {8,16,20,32,40} x window)
-
-This is the G4 gate in docs/03 §3.2. Shadow footprint and shadow CPU time are
-computed by the SAME Python code in simulation as on hardware, so a mismatch
-means the simulator is wired up wrong -- it must NOT be excused as model error.
-
-Findings recorded in docs/06 P14:
-  * every snapshot has checkpoint_block_count == 0 (block_retrieve off), so the
-    replay window is the entire footprint in this sweep
-  * generating_bytes = 83137 + 7551 * replay_task_count, r2 = 0.315
-    -> the per-step constant is measured; the scatter is real and reported
-  * shadow CPU time stays around 1 ms per recovery regardless of model size
-
-Run from the repository root.
-"""
-
 from __future__ import annotations
 
 import argparse

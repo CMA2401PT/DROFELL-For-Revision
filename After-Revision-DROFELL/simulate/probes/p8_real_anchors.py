@@ -1,14 +1,3 @@
-#!/usr/bin/env python3
-"""P8: extract 3090 (2-GPU) calibration anchors and their repeat-to-repeat spread.
-
-The spread matters as much as the anchor: requiring simulation error tighter than
-the hardware's own variance is not meaningful (see docs/03 §3).
-
-Reads the aggregated summary schema (throughput_*_{mean,min,max} + repeat_count),
-which is what both the 3090 and the 8-GPU matrices now use.
-Run from the repository root.
-"""
-
 from __future__ import annotations
 
 import argparse

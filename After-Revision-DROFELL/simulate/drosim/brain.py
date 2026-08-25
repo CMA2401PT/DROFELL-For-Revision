@@ -1,28 +1,3 @@
-"""SimBrain: the backend replacement for DROSIM.
-
-WHAT IT REPLACES, AND WHAT IT DOES NOT
---------------------------------------
-Measured in simulate/probes/p10{a,b,c}: the compute node touches 12 shim methods,
-but every shim is only "build an Operate, append it to brain.operates_XX, await
-it". So the seam is the OPERATE QUEUE, not the shim -- and all 8 infer-path
-operate handlers already exist on the real ``MemoryBrain``.
-
-Therefore SimBrain supplies exactly three things:
-
-  1. the 8 ``ListWithHook`` queues the shims append to
-  2. a scheduling ``loop()`` that drains them, charging virtual time from the
-     cost model and serialising per device
-  3. three ``get_underlay_*`` accessors
-
-Memory accounting, OOM decisions, swap-out and checkpoint downgrade all come from
-the real ``dealers.real_basic.memory.MemoryBrain``, which runs with no GPU and
-allocates zero CUDA bytes (probes/p4). So simulated admission walks the *same*
-constraint tree with the *same* quotas as hardware.
-
-Anything not modelled raises instead of returning silently: a quiet ``None`` would
-poison an entire results table (docs/02 §4.4).
-"""
-
 from __future__ import annotations
 
 from dataclasses import dataclass, field

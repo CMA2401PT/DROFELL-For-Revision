@@ -1,14 +1,3 @@
-#!/usr/bin/env python3
-"""P11: extract calibration anchors from the 8-GPU scale matrices (2026-08 runs).
-
-Two matrices now exist that did not when DROSIM was designed:
-  * unreliable_node  : 7 topologies x 5 failure rates x 5 repeats (with min/max)
-  * infer_scale      : GPU scale {1,2,4,8} x clients {1..128}
-
-Both are consumed as calibration targets (docs/03) rather than as simulation output.
-Run from the repository root.
-"""
-
 from __future__ import annotations
 
 import argparse

@@ -1,13 +1,3 @@
-#!/usr/bin/env python3
-"""Audit whether the 4->8 GPU regression is merge or hop-transfer dominated.
-
-This script intentionally stops at what the archived evidence can identify.
-Single-client data isolates a per-hop term because no cross-request merge exists.
-Decode-graph replay counts recover the mean merge size, and GPU monitor samples
-show whether devices are compute-saturated. The archive still lacks D2H/H2D
-spans and the full merge histogram, so individual hop components remain open.
-"""
-
 from __future__ import annotations
 
 import argparse

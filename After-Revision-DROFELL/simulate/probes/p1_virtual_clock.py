@@ -1,4 +1,3 @@
-"""Probe 1: can we drive DROFELL's own event loop from a virtual clock?"""
 import asyncio as std_asyncio
 import time
 import extend_asyncio as ea

@@ -1,10 +1,3 @@
-#!/usr/bin/env python3
-"""P7: extract per-stage cost distributions from real per-hop traces.
-
-This is the fitting source for DROSIM's CostModel (see docs/03 §2).
-Reads exps/infer-consolidation traces.json: traces[client][token] = [(stage, ns), ...]
-"""
-
 from __future__ import annotations
 
 import argparse

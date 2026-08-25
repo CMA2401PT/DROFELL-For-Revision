@@ -1,15 +1,3 @@
-"""SimContext: the `orbit.defines.Context` contract, backed by SimFabric.
-
-DROFELL's whole networking dependency is the 12-method `Context` ABC -- the
-orchestration code never constructs an IP, port or route, only
-`(logical node name, api name, payload)` triples. That is what makes this
-simulator possible without touching `node/` at all (docs/02 §3.1).
-
-Structure follows `orbit/context.py::Merger`, which is already a pure-Python
-queue implementation; the only substantive change is that `send` goes through
-SimFabric so it costs latency and bandwidth on the virtual timeline.
-"""
-
 from __future__ import annotations
 
 from typing import Any, Awaitable, Callable, Dict, List, Optional

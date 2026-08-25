@@ -1,39 +1,3 @@
-"""SimBackend: a real ``dealers.common.brain.Brain`` whose operators cost
-virtual time instead of GPU cycles.
-
-WHY SUBCLASS THE REAL Brain
----------------------------
-The first DROSIM draft supplied eight hand-rolled queues (``brain.py``, kept for
-the unit tests). That was enough to schedule operates, but it could not be handed
-to the production ``Provider``: every shim in ``dealers/common/provider.py``
-constructs a concrete ``Operate`` dataclass and awaits it, and
-``DealerNode.ainit`` calls ``brain.memory``, ``brain.gen_profile`` and
-``brain.make_model_*``. Subclassing the ABC inherits all sixteen queues, the
-barrier maintainer, ``wait_task`` and the ``_awake`` hook wiring -- so the
-*unmodified* Provider, Shim, InferNode and DealerNode run against it.
-
-WHAT IS REAL, SIMULATED, AND FAKED
-----------------------------------
-real      : admission and memory accounting. Every operate is first handed to
-            ``dealers.real_basic.memory.MemoryBrain`` -- the digital twin --
-            which walks the same constraint tree with the same quotas as
-            hardware and allocates zero CUDA bytes (probes/p4, p15).
-real      : queue discipline. The drain order in ``_operate`` mirrors
-            ``dealers/memory_schedule/brain.py::_operate``, including
-            ``select_multi_with_group`` for the merged stages, so merge sizes are
-            produced by the production policy rather than chosen here.
-simulated : elapsed time, from ``cost.CostModel`` (calibrated; docs/10 §1,
-            probes/p16 for the per-layer term).
-simulated : tensors. Meta tensors carry exact shape and dtype -- so wire byte
-            counts are exact -- while nothing is materialised (probes/p5).
-FAKED     : sampled token IDs. A simulated run has no logits, so tokens come
-            from a deterministic counter.
-            ⇒ **the simulator must never be used for any accuracy claim**
-            (docs/04 §2). Anything not modelled raises instead of returning a
-            plausible value, because a quiet ``None`` would poison a whole
-            results table (docs/02 §4.4).
-"""
-
 from __future__ import annotations
 
 from dataclasses import dataclass, field

@@ -1,31 +1,3 @@
-#!/usr/bin/env python3
-"""P19: local smoke -- the simulated recovery timeline is causally ordered.
-
-WHY THIS IS THE GATE THAT MATTERS FOR CREDIBILITY
--------------------------------------------------
-This probe checks only the simulation side. It does not load hardware events or
-compare packet IDs, so it is necessary but insufficient for reviewer-grade G1.
-The actual G1 comparator is `simulate/validation/audit_recovery_structure.py`.
-
-Two inequalities are checked, both taken from the production instrumentation
-rather than invented here:
-
-  1. `replacement_lookup_start` < `replacement_create_send`
-     < `replacement_graph_installed` < `recovery_packet_send`
-     -- the replacement must be found and installed before replay is sent.
-
-  2. `first_recovery_task_complete` < `frontier_materialized`
-     -- the frontier cannot be declared materialised before the first replayed
-     task has completed. This is the one that would catch a simulator that
-     "recovered" by fiat.
-
-It also reports the REPLAY WINDOW actually used, because that -- not node count --
-is what recovery cost scales with (D3).
-
-Run from the repository root:
-    python simulate/probes/p19_recovery_causality.py
-"""
-
 from __future__ import annotations
 
 import argparse

@@ -1,4 +1,3 @@
-"""Probe 3d: real InferStateData with correct DROFELL model naming, no GPU."""
 import extend_asyncio as ea
 ea.config_impl("py", False)
 from node.shadow_node_state.infer_state_data import InferStateData

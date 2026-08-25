@@ -1,20 +1,3 @@
-#!/usr/bin/env python3
-"""Build an auditable clean-scale calibration/holdout dataset.
-
-Unlike the legacy p16/p18 probes, this extractor reads each client's raw output
-timestamps. It never reconstructs ITL as ``clients / aggregate_throughput`` and
-never borrows variance from another experiment. The split is predeclared here:
-
-* calibration: combined-request-agent, clients {1, 4, 16, 64}
-* primary holdout: combined-request-agent, clients {2, 8, 32, 128}
-* external holdout: every persistent-agent cell
-
-There is currently one independent hardware run per cell. Block-bootstrap
-intervals quantify within-run temporal uncertainty, not run-to-run variance;
-the output states that limitation and remains paper-ineligible until repeated
-hardware runs exist or the paper explicitly limits the validation claim.
-"""
-
 from __future__ import annotations
 
 import argparse

@@ -1,36 +1,3 @@
-#!/usr/bin/env python3
-"""P17: validate SimFabric's transport model against the three shaped tiers.
-
-WHY THIS IS A VALIDATION AND NOT A FIT
---------------------------------------
-`吞吐量实验/3090-带tc/DROFELL-推理-7B-三种网络` runs the SAME model on the SAME two
-RTX 3090s with the SAME 2-dealer topology under three `tc` settings:
-
-    1g-lt5     1 Gbit,   <5 ms
-    100m-lt5   100 Mbit, <5 ms
-    100m-100   100 Mbit, 100 ms
-
-So exactly one link property changes between adjacent tiers, which makes the
-transport term separately identifiable from compute. Model one decode token as
-
-    ITL = W_compute + C * ( latency_one_way + payload_bits / bandwidth )
-
-with C the number of shaped network crossings per token. C is a STRUCTURAL
-property of the deployment (2 dealers plus the request/Agent node), so it must
-come out the same whether it is solved from the LATENCY axis or from the
-BANDWIDTH axis. Those are two independent measurements of one integer:
-
-    latency axis:    C = (ITL_100m_100 - ITL_100m_lt5) / latency_one_way
-    bandwidth axis:  C = (ITL_100m_lt5 - ITL_1g_lt5) / (payload_bits * (1/BW_100m - 1/BW_1g))
-
-If both land on the same integer, the fabric model is right for the reason it
-claims to be right, rather than tuned. If they disagree, the model is wrong and
-`drosim/fabric.py` must not be trusted on the weak-network axis.
-
-Run from the repository root:
-    python simulate/probes/p17_fabric_validate.py --out simulate/results/fabric_validate.json
-"""
-
 from __future__ import annotations
 
 import argparse
