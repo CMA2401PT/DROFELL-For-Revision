@@ -86,7 +86,7 @@ def silu_and_mul(output: torch.Tensor, input: torch.Tensor) -> None:
 def rms_norm(
     output: torch.Tensor,
     input: torch.Tensor,
-    weight: torch.Tensor | None,
+    weight: torch.Tensor,
     epsilon: float,
 ) -> None:
     _ops.rms_norm(output, input, weight, epsilon)
@@ -95,7 +95,7 @@ def rms_norm(
 def fused_add_rms_norm(
     input: torch.Tensor,
     residual: torch.Tensor,
-    weight: torch.Tensor | None,
+    weight: torch.Tensor,
     epsilon: float,
 ) -> None:
     _ops.fused_add_rms_norm(input, residual, weight, epsilon)

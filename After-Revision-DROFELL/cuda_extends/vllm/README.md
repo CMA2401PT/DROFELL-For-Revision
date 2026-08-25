@@ -25,7 +25,7 @@ The following files remain byte-for-byte identical to that baseline:
 `cache_kernels.cu` were substantially modified for DROFELL's pointer-table,
 dynamic-block, simplified/original compatibility, and cache restore paths.
 
-## Current fused and Marlin operators
+## Fused and Marlin operators
 
 The newer retained operator subset is:
 
@@ -36,9 +36,17 @@ The newer retained operator subset is:
 - `gptq_marlin_repack`
 - `marlin_gemm` (FP16 + GPTQ uint4b8 on SM80+)
 
-This source snapshot was taken from `vllm-project/vllm` commit
-`70b84f0bcbb6d0a35b74b1035673a1c934089dbb`. The Marlin selector and generated
-instantiations were reduced to the FP16 GPTQ path used by this repository.
+The fused activation, normalization, and rotary sources use the vLLM
+`v0.23.0` tag at commit `0fc695fc6d1d82e9a5ac6835ac8e4e1c83703665`,
+matching DROFELL's validated runtime environment. This matters for performance:
+post-0.23 `main` generalized the activation and normalization kernels for APIs
+that DROFELL does not use.
+
+The stable-libtorch Marlin sources use commit
+`70b84f0bcbb6d0a35b74b1035673a1c934089dbb`. Their selector and generated
+instantiations were reduced to the FP16 GPTQ uint4b8 path used by this
+repository. The reduced Marlin GEMM and repack outputs were validated against
+the installed vLLM 0.23.0 operators.
 
 The vendored files remain licensed under Apache License 2.0. See `LICENSE` in
 this directory. The license file is byte-for-byte identical in both traced

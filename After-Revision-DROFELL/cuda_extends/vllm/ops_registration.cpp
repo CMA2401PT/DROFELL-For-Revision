@@ -12,12 +12,11 @@
 void silu_and_mul(torch::stable::Tensor& out, torch::stable::Tensor& input);
 
 void rms_norm(torch::stable::Tensor& out, torch::stable::Tensor& input,
-              std::optional<torch::stable::Tensor> weight, double epsilon);
+              torch::stable::Tensor& weight, double epsilon);
 
 void fused_add_rms_norm(torch::stable::Tensor& input,
                         torch::stable::Tensor& residual,
-                        std::optional<torch::stable::Tensor> weight,
-                        double epsilon);
+                        torch::stable::Tensor& weight, double epsilon);
 
 void rotary_embedding(torch::stable::Tensor& positions,
                       torch::stable::Tensor& query,
@@ -29,10 +28,10 @@ void rotary_embedding(torch::stable::Tensor& positions,
 STABLE_TORCH_LIBRARY_FRAGMENT(_drofell_vllm_ops, ops) {
   ops.def("silu_and_mul(Tensor! result, Tensor input) -> ()");
   ops.def(
-      "rms_norm(Tensor! result, Tensor input, Tensor? weight, float epsilon) "
+      "rms_norm(Tensor! result, Tensor input, Tensor weight, float epsilon) "
       "-> ()");
   ops.def(
-      "fused_add_rms_norm(Tensor! input, Tensor! residual, Tensor? weight, "
+      "fused_add_rms_norm(Tensor! input, Tensor! residual, Tensor weight, "
       "float epsilon) -> ()");
   ops.def(
       "rotary_embedding(Tensor positions, Tensor! query, Tensor!? key, "
